@@ -1,0 +1,12 @@
+[package]
+name = "dbase-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.2.1", features = ["derive"] }
+dbase = { git = "https://github.com/casperhart/dbase-rs.git", features = [
+    "datafusion",
+] }
+datafusion = { version = "20" }
+tokio = "1.27.0"
