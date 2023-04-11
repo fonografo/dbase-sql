@@ -10,3 +10,4 @@ dbase = { git = "https://github.com/casperhart/dbase-rs.git", features = [
 ] }
 datafusion = { version = "20" }
 tokio = "1.27.0"
+csv = "1.2.1"

@@ -1,4 +1,5 @@
 use clap::{ArgGroup, Parser};
+use csv::WriterBuilder;
 use datafusion::arrow::error::Result;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::util::display::{ArrayFormatter, FormatOptions};
@@ -7,7 +8,7 @@ use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::prelude::*;
 use dbase::DbaseTableFactory;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::sync::Arc;
 
 #[derive(Parser, Debug)]
@@ -42,13 +43,19 @@ enum OutputFormatArg {
 }
 
 enum OutputFormat {
-    Delimited(String),
+    Delimited(u8),
     Table,
 }
 
 #[tokio::main]
 async fn main() -> datafusion::error::Result<()> {
     let args = Args::parse();
+
+    if let Some(d) = &args.delimiter_for_dsv {
+        if d.len() > 1 {
+            panic!("delimiter must be a single byte")
+        }
+    }
 
     let cfg = RuntimeConfig::new();
     let env = RuntimeEnv::new(cfg).unwrap();
@@ -85,11 +92,11 @@ async fn main() -> datafusion::error::Result<()> {
 
     let output_format = match args.output_format {
         Some(c) => match c {
-            OutputFormatArg::Csv => OutputFormat::Delimited(",".to_owned()),
-            OutputFormatArg::Tsv => OutputFormat::Delimited("\t".to_owned()),
+            OutputFormatArg::Csv => OutputFormat::Delimited(b','),
+            OutputFormatArg::Tsv => OutputFormat::Delimited(b'\t'),
             OutputFormatArg::Dsv => match &args.delimiter_for_dsv {
-                Some(s) => OutputFormat::Delimited(s.to_owned()),
-                None => OutputFormat::Delimited("|".to_owned()),
+                Some(s) => OutputFormat::Delimited(s.as_bytes()[0]),
+                None => OutputFormat::Delimited(b'|'),
             },
             OutputFormatArg::Table => OutputFormat::Table,
         },
@@ -102,7 +109,7 @@ async fn main() -> datafusion::error::Result<()> {
         match &output_format {
             OutputFormat::Delimited(s) => {
                 let results = res.collect().await?;
-                print_results(&results, &s).unwrap();
+                print_results(&results, *s).unwrap();
             }
             OutputFormat::Table => {
                 if res.clone().collect().await?.len() > 0 {
@@ -115,37 +122,42 @@ async fn main() -> datafusion::error::Result<()> {
     Ok(())
 }
 
-fn print_results(results: &[RecordBatch], delimiter: &str) -> std::io::Result<()> {
+fn print_results(results: &[RecordBatch], delimiter: u8) -> std::io::Result<()> {
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     let options = FormatOptions::default().with_display_error(true);
 
-    for batch in results {
-        let formatters: Vec<ArrayFormatter> = batch
+    if let Some(first_batch) = results.first() {
+        let mut writer = WriterBuilder::new()
+            .delimiter(delimiter)
+            .from_writer(&mut handle);
+
+        let formatters: Vec<ArrayFormatter>;
+        // Write header
+        let headers: Vec<String> = first_batch
+            .schema()
+            .fields()
+            .iter()
+            .map(|field| field.name().to_string())
+            .collect();
+        writer.write_record(headers)?;
+
+        formatters = first_batch
             .columns()
             .iter()
             .map(|c| ArrayFormatter::try_new(c.as_ref(), &options))
             .collect::<Result<Vec<_>>>()
             .unwrap();
 
-        for (i, field) in batch.schema().fields().iter().enumerate() {
-            handle.write_all(field.name().as_bytes()).unwrap();
-            if i < batch.num_columns() - 1 {
-                handle.write_all(delimiter.as_bytes()).unwrap();
-            };
-        }
-        handle.write_all(b"\n")?;
+        for batch in results {
+            for row in 0..batch.num_rows() {
+                let mut record = csv::StringRecord::new();
 
-        for row in 0..batch.num_rows() {
-            for col in 0..formatters.len() {
-                handle
-                    .write_all(format!("{}", &formatters[col].value(row)).as_bytes())
-                    .unwrap();
-                if col < batch.num_columns() - 1 {
-                    handle.write_all(delimiter.as_bytes())?;
+                for col in 0..batch.num_columns() {
+                    record.push_field(&formatters[col].value(row).to_string());
                 }
+                writer.write_record(&record).unwrap();
             }
-            handle.write_all(b"\n")?;
         }
     }
 

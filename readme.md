@@ -57,8 +57,6 @@ LIMIT 1;
 - DSV (`--output-format dsv --delimiter-for-dsv '|'`)
 - Table (default) (`--output-format table`)
 
-Note that output formats are currently naive implementations, and no escaping or quoting is done. So proceed with caution.
-
 ## Contributing 🤝
 
 Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/casperhart/dbase-cli/issues).
