@@ -11,3 +11,5 @@ dbase = { git = "https://github.com/casperhart/dbase-rs.git", features = [
 datafusion = { version = "20" }
 tokio = "1.27.0"
 csv = "1.2.1"
+rustyline = { version = "11.0.0", features = ["with-file-history"] }
+dirs = "5.0.0"

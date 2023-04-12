@@ -7,6 +7,9 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::prelude::*;
 use dbase::DbaseTableFactory;
+use dirs::home_dir;
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::Arc;
@@ -15,7 +18,7 @@ use std::sync::Arc;
 #[command(author, version, about, long_about = None)]
 #[clap(group(
     ArgGroup::new("method")
-        .required(true)
+        .required(false)
         .args(&["file", "execute"]),
 ))]
 struct Args {
@@ -69,27 +72,6 @@ async fn main() -> datafusion::error::Result<()> {
 
     let ctx = SessionContext::with_state(state);
 
-    let mut query: String;
-
-    if let Some(file) = args.file.as_deref() {
-        let file = File::open(file)?;
-        let reader = BufReader::new(file);
-        query = String::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            query.push_str(&line);
-            query.push(' ');
-        }
-    } else {
-        query = args.execute.unwrap();
-    }
-
-    let statements: Vec<&str> = query
-        .split(";")
-        .filter(|statement| !statement.trim().is_empty())
-        .collect();
-
     let output_format = match args.output_format {
         Some(c) => match c {
             OutputFormatArg::Csv => OutputFormat::Delimited(b','),
@@ -103,21 +85,117 @@ async fn main() -> datafusion::error::Result<()> {
         None => OutputFormat::Table,
     };
 
-    for statement in statements {
-        let res = ctx.sql(statement).await?;
+    match (args.execute, args.file) {
+        // query provided directly
+        (Some(q), None) => {
+            process_statements(&ctx, q.as_ref(), &output_format).await?;
+        }
+        // extract query from file
+        (None, Some(file)) => {
+            let file = File::open(file)?;
+            let reader = BufReader::new(file);
+            let mut query = String::new();
 
-        match &output_format {
-            OutputFormat::Delimited(s) => {
-                let results = res.collect().await?;
-                print_results(&results, *s).unwrap();
+            for line in reader.lines() {
+                let line = line?;
+                query.push_str(&line);
+                query.push(' ');
             }
-            OutputFormat::Table => {
-                if res.clone().collect().await?.len() > 0 {
-                    res.show().await?;
-                }
+            process_statements(&ctx, query.as_ref(), &output_format).await?;
+        }
+        // start repl and wait for input
+        (None, None) => {
+            repl(&ctx, &output_format).await.unwrap();
+        }
+        _ => unimplemented!(),
+    }
+
+    Ok(())
+}
+
+async fn process_statements(
+    ctx: &SessionContext,
+    query: &str,
+    output_format: &OutputFormat,
+) -> datafusion::error::Result<()> {
+    let statements: Vec<&str> = query
+        .split(';')
+        .filter(|statement| !statement.trim().is_empty())
+        .collect();
+
+    for statement in statements {
+        match process_statement(ctx, statement, output_format).await {
+            Ok(_) => continue,
+            Err(e) => {
+                println!("{}", e);
+                break;
             }
         }
     }
+    Ok(())
+}
+
+async fn process_statement(
+    ctx: &SessionContext,
+    statement: &str,
+    output_format: &OutputFormat,
+) -> datafusion::error::Result<()> {
+    let res = ctx.sql(statement).await?;
+
+    match &output_format {
+        OutputFormat::Delimited(s) => {
+            let results = res.collect().await?;
+            print_results(&results, *s).unwrap();
+        }
+        OutputFormat::Table => {
+            // todo: don't collect the result twice
+            if res.clone().collect().await?.is_empty() {
+                res.show().await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn repl(ctx: &SessionContext, output_format: &OutputFormat) -> rustyline::Result<()> {
+    // `()` can be used when no completer is required
+    let mut rl = DefaultEditor::new()?;
+    let mut query: String = Default::default();
+
+    let history_path = get_history_path();
+
+    if rl.load_history(&history_path).is_err() {
+        println!("No previous history.");
+    }
+
+    loop {
+        let readline = rl.readline("dbase-sql> ");
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(line.as_str()).unwrap();
+                query.push_str(&line);
+                if query.ends_with(';') {
+                    process_statements(ctx, &query, output_format)
+                        .await
+                        .expect("failed to process statements");
+                    query = Default::default();
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
+            }
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
+        }
+    }
+    rl.save_history(&history_path).unwrap();
 
     Ok(())
 }
@@ -132,7 +210,6 @@ fn print_results(results: &[RecordBatch], delimiter: u8) -> std::io::Result<()> 
             .delimiter(delimiter)
             .from_writer(&mut handle);
 
-        let formatters: Vec<ArrayFormatter>;
         // Write header
         let headers: Vec<String> = first_batch
             .schema()
@@ -142,7 +219,7 @@ fn print_results(results: &[RecordBatch], delimiter: u8) -> std::io::Result<()> 
             .collect();
         writer.write_record(headers)?;
 
-        formatters = first_batch
+        let formatters = first_batch
             .columns()
             .iter()
             .map(|c| ArrayFormatter::try_new(c.as_ref(), &options))
@@ -153,8 +230,8 @@ fn print_results(results: &[RecordBatch], delimiter: u8) -> std::io::Result<()> 
             for row in 0..batch.num_rows() {
                 let mut record = csv::StringRecord::new();
 
-                for col in 0..batch.num_columns() {
-                    record.push_field(&formatters[col].value(row).to_string());
+                for formatter in formatters.iter() {
+                    record.push_field(&formatter.value(row).to_string());
                 }
                 writer.write_record(&record).unwrap();
             }
@@ -162,4 +239,19 @@ fn print_results(results: &[RecordBatch], delimiter: u8) -> std::io::Result<()> 
     }
 
     Ok(())
+}
+
+fn get_history_path() -> String {
+    let mut history_path = home_dir().unwrap();
+
+    history_path.push(".dbase-sql");
+
+    if !history_path.exists() {
+        std::fs::create_dir(&history_path).unwrap();
+    }
+
+    history_path.push("history.txt");
+    let history_path_str = history_path.to_str().unwrap();
+
+    history_path_str.to_string()
 }
