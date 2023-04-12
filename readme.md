@@ -1,6 +1,6 @@
-# dbase-cli
+# dbase-sql
 
-`dbase-cli` is a command-line tool that allows you to query dBase (`.dbf`) files using SQL. Powered by the [`dbase-rs`](https://github.com/tmontaigu/dbase-rs) library for dBase file parsing and [`datafusion`](https://github.com/apache/arrow-datafusion) as the query engine, `dbase-cli` provides a fast and easy way to query dBase files.
+`dbase-sql` is a command-line tool that allows you to query dBase (`.dbf`) files using SQL. Powered by the [`dbase-rs`](https://github.com/tmontaigu/dbase-rs) library for dBase file parsing and [`datafusion`](https://github.com/apache/arrow-datafusion) as the query engine, `dbase-sql` provides a fast and easy way to query dBase files.
 
 ## Features 🌟
 
@@ -15,8 +15,8 @@ Ensure you have Rust installed on your system. If not, follow the instructions [
 Then, clone the repository:
 
 ```
-git clone https://github.com/casperhart/dbase-cli.git
-cd dbase-cli
+git clone https://github.com/casperhart/dbase-sql.git
+cd dbase-sql
 ```
 
 Build and install the binary:
@@ -31,13 +31,13 @@ cargo install --path .
 Run a SQL query on a dBase file:
 
 ```
-dbase-cli -e "CREATE EXTERNAL TABLE orders STORED AS dbase LOCATION '/path/to/ORDERS.DBF'; SELECT order_id, customer_name, order_date FROM orders LIMIT 1;" --output-format tsv > output.tsv
+dbase-sql -e "CREATE EXTERNAL TABLE orders STORED AS dbase LOCATION '/path/to/ORDERS.DBF'; SELECT order_id, customer_name, order_date FROM orders LIMIT 1;" --output-format tsv > output.tsv
 ```
 
 Or, run a SQL query from a file:
 
 ```
-dbase-cli -f sample_query.sql --output-format tsv > output.tsv
+dbase-sql -f sample_query.sql --output-format tsv > output.tsv
 ```
 
 Where `sample_query.sql` contains:
@@ -59,7 +59,7 @@ LIMIT 1;
 
 ## Contributing 🤝
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/casperhart/dbase-cli/issues).
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/casperhart/dbase-sql/issues).
 
 ## Show your support ⭐
 

@@ -1,5 +1,5 @@
 [package]
-name = "dbase-cli"
+name = "dbase-sql"
 version = "0.1.0"
 edition = "2021"
 

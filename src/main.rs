@@ -149,7 +149,7 @@ async fn process_statement(
         }
         OutputFormat::Table => {
             // todo: don't collect the result twice
-            if res.clone().collect().await?.is_empty() {
+            if !res.clone().collect().await?.is_empty() {
                 res.show().await?;
             }
         }
