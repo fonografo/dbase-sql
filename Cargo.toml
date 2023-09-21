@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.2.1", features = ["derive"] }
 dbase = { git = "https://github.com/casperhart/dbase-rs.git", features = [
     "datafusion",
 ] }
-datafusion = { version = "20" }
-tokio = "1.27.0"
+datafusion = { version = "31" }
+tokio = "1.28.0"
 csv = "1.2.1"
 rustyline = { version = "11.0.0", features = ["with-file-history"] }
 dirs = "5.0.0"
+clap = { version = "4.2.1", features = ["derive"] }
