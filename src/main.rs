@@ -1,8 +1,7 @@
 use clap::{ArgGroup, Parser};
-use csv::WriterBuilder;
+use datafusion::arrow::csv::writer::WriterBuilder;
 use datafusion::arrow::error::Result;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::util::display::{ArrayFormatter, FormatOptions};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion::prelude::*;
@@ -200,42 +199,17 @@ async fn repl(ctx: &SessionContext, output_format: &OutputFormat) -> rustyline::
     Ok(())
 }
 
-fn print_results(results: &[RecordBatch], delimiter: u8) -> std::io::Result<()> {
+fn print_results(results: &[RecordBatch], delimiter: u8) -> Result<()> {
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    let options = FormatOptions::default().with_display_error(true);
 
-    if let Some(first_batch) = results.first() {
-        let mut writer = WriterBuilder::new()
-            .delimiter(delimiter)
-            .from_writer(&mut handle);
+    let mut writer = WriterBuilder::new()
+        .with_delimiter(delimiter)
+        .has_headers(true)
+        .build(&mut handle);
 
-        // Write header
-        let headers: Vec<String> = first_batch
-            .schema()
-            .fields()
-            .iter()
-            .map(|field| field.name().to_string())
-            .collect();
-        writer.write_record(headers)?;
-
-        let formatters = first_batch
-            .columns()
-            .iter()
-            .map(|c| ArrayFormatter::try_new(c.as_ref(), &options))
-            .collect::<Result<Vec<_>>>()
-            .unwrap();
-
-        for batch in results {
-            for row in 0..batch.num_rows() {
-                let mut record = csv::StringRecord::new();
-
-                for formatter in formatters.iter() {
-                    record.push_field(&formatter.value(row).to_string());
-                }
-                writer.write_record(&record).unwrap();
-            }
-        }
+    for batch in results {
+        writer.write(batch)?;
     }
 
     Ok(())

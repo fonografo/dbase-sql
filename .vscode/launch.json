@@ -1,0 +1,50 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'dbase-sql'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=dbase-sql",
+                    "--package=dbase-sql"
+                ],
+                "filter": {
+                    "name": "dbase-sql",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "-f",
+                "reow_export.sql",
+                "--output-format",
+                "tsv"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'dbase-sql'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=dbase-sql",
+                    "--package=dbase-sql"
+                ],
+                "filter": {
+                    "name": "dbase-sql",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
