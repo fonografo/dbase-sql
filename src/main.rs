@@ -98,7 +98,7 @@ async fn main() -> datafusion::error::Result<()> {
             for line in reader.lines() {
                 let line = line?;
                 query.push_str(&line);
-                query.push(' ');
+                query.push('\n');
             }
             process_statements(&ctx, query.as_ref(), &output_format).await?;
         }
