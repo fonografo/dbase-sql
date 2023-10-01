@@ -952,7 +952,7 @@ dependencies = [
 [[package]]
 name = "dbase"
 version = "0.4.0"
-source = "git+https://github.com/casperhart/dbase-rs.git#0ceffe63438f5624fc9130cd86f22334ce56d29c"
+source = "git+https://github.com/casperhart/dbase-rs.git#ad311b657eb5d7e83bfd1e4cbb3993e3e41723f1"
 dependencies = [
  "async-trait",
  "byteorder",

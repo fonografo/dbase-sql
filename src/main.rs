@@ -123,12 +123,9 @@ async fn process_statements(
         .collect();
 
     for statement in statements {
-        match process_statement(ctx, statement, output_format).await {
-            Ok(_) => continue,
-            Err(e) => {
-                println!("{}", e);
-                break;
-            }
+        if let Err(e) = process_statement(ctx, statement, output_format).await {
+            eprintln!("{}", e);
+            break;
         }
     }
     Ok(())
