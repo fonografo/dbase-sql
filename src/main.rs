@@ -123,10 +123,7 @@ async fn process_statements(
         .collect();
 
     for statement in statements {
-        if let Err(e) = process_statement(ctx, statement, output_format).await {
-            eprintln!("{}", e);
-            break;
-        }
+        process_statement(ctx, statement, output_format).await?
     }
     Ok(())
 }
@@ -173,7 +170,7 @@ async fn repl(ctx: &SessionContext, output_format: &OutputFormat) -> rustyline::
                 if query.ends_with(';') {
                     process_statements(ctx, &query, output_format)
                         .await
-                        .expect("failed to process statements");
+                        .unwrap_or_else(|e| eprintln!("{}", e));
                     query = Default::default();
                 }
             }
